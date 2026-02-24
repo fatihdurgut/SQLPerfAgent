@@ -1,0 +1,16 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.vs/
+.vs/
+
+## NuGet
+*.nupkg
+packages/
+
+## IDE
+.idea/
+*.swp
+*~
