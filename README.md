@@ -35,6 +35,12 @@ The agent uses the [GitHub Copilot SDK](https://github.com/features/copilot) wit
 
 ## Features
 
+- **Three scan modes** — Quick (DMVs only), Deep (DMVs + Tiger Toolbox), or Tiger Mode (comprehensive)
+- **Tiger Toolbox integration** — Incorporates Microsoft's battle-tested SQL Server diagnostic tools
+  - Best practices checks (backup status, MaxDOP, memory pressure, deprecated features)
+  - VLF (Virtual Log File) analysis and recommendations
+  - TempDB configuration verification
+  - Duplicate and redundant index detection
 - **Automated DMV diagnostics** — queries missing indexes, index fragmentation, expensive queries, and unused indexes
 - **AI-powered analysis** — sends raw DMV data to GitHub Copilot for expert-level interpretation
 - **Actionable fix scripts** — generates SQL scripts with safety checks, comments, and rollback instructions
@@ -71,6 +77,40 @@ The agent uses the [GitHub Copilot SDK](https://github.com/features/copilot) wit
    dotnet run
    ```
 
+## What's New: Tiger Toolbox Integration
+
+SQLPerfAgent now integrates diagnostic scripts from [Microsoft Tiger Toolbox](https://github.com/microsoft/tigertoolbox), a collection of battle-tested SQL Server tools from Microsoft's Tiger Team:
+
+### New Diagnostic Capabilities
+
+- **VLF Analysis**: Detects excessive Virtual Log Files that impact transaction log performance
+- **TempDB Configuration**: Validates file count, size equality, autogrow settings, and drive placement
+- **Backup Verification**: Checks for missing or outdated full and log backups
+- **Memory Pressure Detection**: Identifies when available physical memory is critically low
+- **MaxDOP Configuration**: Validates max degree of parallelism against CPU count
+- **Instant File Initialization**: Verifies IFI is enabled for faster data file operations
+- **Deprecated Features**: Flags usage of features being removed in future SQL versions
+- **Duplicate Index Detection**: Finds indexes with identical key columns adding unnecessary overhead
+- **Redundant Index Detection**: Identifies indexes that make other indexes unnecessary
+
+### Scan Modes Explained
+
+**Quick Scan** (30-60 seconds)
+- Standard DMV queries for common performance issues
+- Best for routine health checks
+
+**Deep Scan** (1-2 minutes)
+- All Quick Scan checks
+- Tiger Toolbox best practices checks
+- Comprehensive system configuration analysis
+- Best for monthly health reviews
+
+**Tiger Mode** (2-5 minutes)
+- All Deep Scan checks
+- Advanced index analysis (duplicate/redundant detection)
+- Most thorough diagnostic available
+- Best for major performance investigations
+
 ## Usage
 
 The agent walks you through an interactive workflow:
@@ -91,9 +131,25 @@ Choose your server and authentication method. The agent auto-discovers user data
 
 Pick a specific database or scan all user databases at once.
 
-### 3. Review recommendations
+### 3. Choose scan mode
 
-The agent runs DMV diagnostic queries, sends the results to Copilot for analysis, and displays categorized findings:
+Select the depth of analysis you want:
+
+```
+── Scan Mode Selection ──
+  Select scan mode:
+    [1] Quick Scan (Standard DMV queries only)
+    [2] Deep Scan (DMVs + Tiger Toolbox checks)
+    [3] Tiger Mode (Comprehensive - All checks including advanced index analysis)
+```
+
+- **Quick Scan**: Fast DMV-based analysis (missing indexes, fragmentation, expensive queries, unused indexes)
+- **Deep Scan**: Adds Tiger Toolbox checks (VLF, TempDB, backups, memory, MaxDOP, deprecated features)
+- **Tiger Mode**: Most comprehensive - includes all above plus duplicate/redundant index detection
+
+### 4. Review recommendations
+
+The agent runs diagnostic queries, sends the results to Copilot for analysis, and displays categorized findings:
 
 ```
 ── Found 5 Recommendation(s) ──

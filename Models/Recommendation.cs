@@ -33,10 +33,16 @@ public sealed record Recommendation
     public required string Description { get; init; }
     public required string AffectedObject { get; init; }
     public string? FixScript { get; set; }
-    public string? Source { get; init; } // "DMV" or "AssessmentAPI"
+    public string? Source { get; init; } // "DMV", "TigerToolbox", or "AssessmentAPI"
     public bool IsFixed { get; set; }
     public bool IsSkipped { get; set; }
     public string? Error { get; set; }
+    
+    // Tiger Toolbox enhancements
+    public string? ReferenceUrl { get; init; }
+    public int SeverityScore { get; init; } // 1-10 scale
+    public string? BaselineComparison { get; init; } // e.g., "40% worse than baseline"
+    public string[]? RelatedChecks { get; init; }
 }
 
 /// <summary>

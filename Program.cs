@@ -84,6 +84,17 @@ ConsoleUI.WriteSuccess($"Connecting to {server}" +
     (database is not null ? $" / {database}" : " (all databases)") +
     (connectionConfig.UseWindowsAuth ? " [Windows Auth]" : " [SQL Auth]"));
 
+// ── Step 3A: Scan Mode Selection ──
+ConsoleUI.WriteHeader("Scan Mode Selection");
+
+var scanMode = ConsoleUI.PromptChoice(
+    "Select scan mode:",
+    "Quick Scan (Standard DMV queries only)",
+    "Deep Scan (DMVs + Tiger Toolbox checks)",
+    "Tiger Mode (Comprehensive - All checks including advanced index analysis)");
+
+ConsoleUI.WriteSuccess($"Selected: {new[] { "Quick Scan", "Deep Scan", "Tiger Mode" }[scanMode]}");
+
 // ── Step 3: Initialize Copilot with mssql-mcp ──
 ConsoleUI.WriteHeader("Initializing Copilot Agent");
 ConsoleUI.WriteInfo("Starting Copilot SDK with mssql-mcp server...");
@@ -106,20 +117,64 @@ List<Recommendation> recommendations = [];
 while (true)
 {
     ConsoleUI.WriteHeader("Fetching Recommendations");
-    ConsoleUI.WriteInfo($"Querying DMVs{(database is not null ? $" on [{database}]" : " across all user databases")}...");
-
-    // Run DMV queries directly using SqlClient (supports Windows Auth)
-    var queryService = new SqlQueryService(connectionConfig);
+    
     string dmvResults;
-    try
+    
+    if (scanMode == 0)
     {
-        dmvResults = await queryService.RunDiagnosticQueriesAsync(database);
-        ConsoleUI.WriteSuccess($"DMV queries completed ({dmvResults.Split('\n').Length} lines of data).");
+        // Quick Scan - Standard DMV queries only
+        ConsoleUI.WriteInfo($"Running Quick Scan{(database is not null ? $" on [{database}]" : " across all user databases")}...");
+        
+        var queryService = new SqlQueryService(connectionConfig);
+        try
+        {
+            dmvResults = await queryService.RunDiagnosticQueriesAsync(database);
+            ConsoleUI.WriteSuccess($"DMV queries completed ({dmvResults.Split('\n').Length} lines of data).");
+        }
+        catch (Exception ex)
+        {
+            ConsoleUI.WriteError($"Failed to query SQL Server: {ex.Message}");
+            return 1;
+        }
     }
-    catch (Exception ex)
+    else
     {
-        ConsoleUI.WriteError($"Failed to query SQL Server: {ex.Message}");
-        return 1;
+        // Deep Scan or Tiger Mode - Include Tiger Toolbox checks
+        ConsoleUI.WriteInfo($"Running {(scanMode == 1 ? "Deep Scan" : "Tiger Mode")}{(database is not null ? $" on [{database}]" : " across all user databases")}...");
+        
+        var queryService = new SqlQueryService(connectionConfig);
+        var tigerService = new TigerToolboxService(connectionConfig);
+        
+        var sb = new System.Text.StringBuilder();
+        
+        // Run standard DMV queries
+        ConsoleUI.WriteInfo("  • Running standard DMV queries...");
+        try
+        {
+            var dmvData = await queryService.RunDiagnosticQueriesAsync(database);
+            sb.AppendLine(dmvData);
+            sb.AppendLine();
+        }
+        catch (Exception ex)
+        {
+            ConsoleUI.WriteError($"  Failed to run DMV queries: {ex.Message}");
+            return 1;
+        }
+        
+        // Run Tiger Toolbox checks
+        ConsoleUI.WriteInfo("  • Running Tiger Toolbox checks...");
+        try
+        {
+            var tigerData = await tigerService.RunTigerChecksAsync(database, includeAdvanced: scanMode == 2);
+            sb.AppendLine(tigerData);
+        }
+        catch (Exception ex)
+        {
+            ConsoleUI.WriteWarning($"  Some Tiger Toolbox checks failed: {ex.Message}");
+        }
+        
+        dmvResults = sb.ToString();
+        ConsoleUI.WriteSuccess($"Comprehensive scan completed ({dmvResults.Split('\n').Length} lines of data).");
     }
 
     // Send results to Copilot for analysis
