@@ -27,11 +27,11 @@ public enum RecommendationSeverity
 public sealed record Recommendation
 {
     public string Id { get; init; } = Guid.NewGuid().ToString("N")[..8];
-    public required RecommendationCategory Category { get; init; }
-    public required RecommendationSeverity Severity { get; init; }
-    public required string Title { get; init; }
-    public required string Description { get; init; }
-    public required string AffectedObject { get; init; }
+    public RecommendationCategory Category { get; init; } = RecommendationCategory.Configuration;
+    public RecommendationSeverity Severity { get; init; } = RecommendationSeverity.Informational;
+    public string Title { get; init; } = "Unknown";
+    public string Description { get; init; } = string.Empty;
+    public string AffectedObject { get; init; } = "N/A";
     public string? FixScript { get; set; }
     public string? Source { get; init; } // "DMV", "TigerToolbox", or "AssessmentAPI"
     public bool IsFixed { get; set; }

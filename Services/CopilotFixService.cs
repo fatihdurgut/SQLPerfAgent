@@ -262,6 +262,36 @@ internal sealed class CopilotFixService : IAsyncDisposable
     }
 
     /// <summary>
+    /// Handles free-form questions about database performance and provides AI-powered answers.
+    /// </summary>
+    public async Task<string?> AskQuestionAsync(string question, string? databaseContext = null)
+    {
+        ArgumentNullException.ThrowIfNull(_session);
+
+        var contextNote = databaseContext is not null 
+            ? $"\n\nContext: The user is currently analyzing database '{databaseContext}'." 
+            : string.Empty;
+
+        var prompt = $"""
+            The user has a question about SQL Server performance, configuration, or diagnostics:
+            
+            "{question}"
+            {contextNote}
+            
+            Please provide:
+            1. A clear answer to their question
+            2. Specific SQL queries or diagnostic checks they can run to investigate this (use mssql tools if appropriate)
+            3. Actionable recommendations or best practices related to their question
+            4. Any warnings or things to be aware of
+            
+            Use the mssql tools to query the database if it would help answer their question.
+            Be specific, practical, and provide examples where helpful.
+            """;
+
+        return await SendAndWaitForResponseAsync(prompt);
+    }
+
+    /// <summary>
     /// Sends a prompt and waits for the complete response, optionally streaming to console.
     /// </summary>
     private async Task<string?> SendAndWaitForResponseAsync(string prompt, bool silent = false)

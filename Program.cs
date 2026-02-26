@@ -202,17 +202,56 @@ while (true)
             if (jsonStart >= 0 && jsonEnd > jsonStart)
             {
                 var json = recommendationsJson[jsonStart..(jsonEnd + 1)];
-                recommendations = JsonSerializer.Deserialize<List<Recommendation>>(json, new JsonSerializerOptions
+                
+                var jsonOptions = new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true,
-                    Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
-                }) ?? [];
+                    Converters = 
+                    { 
+                        TolerantEnumConverterFactory.CreateCategoryConverter(),
+                        TolerantEnumConverterFactory.CreateSeverityConverter()
+                    },
+                    // Allow missing required properties by treating them as null/default
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never
+                };
+                
+                recommendations = JsonSerializer.Deserialize<List<Recommendation>>(json, jsonOptions) ?? [];
+                
+                if (recommendations.Count > 0)
+                {
+                    ConsoleUI.WriteSuccess($"Parsed {recommendations.Count} recommendation(s) from AI analysis.");
+                }
+            }
+            else
+            {
+                // No JSON array found in response
+                ConsoleUI.WriteInfo("AI analysis returned no structured recommendations.");
             }
         }
-        catch (JsonException ex)
+        catch (JsonException)
         {
-            ConsoleUI.WriteWarning($"Could not parse structured recommendations: {ex.Message}");
+            // JSON parsing failed - show user-friendly message
+            ConsoleUI.WriteInfo("AI analysis completed, but results could not be structured.");
+            ConsoleUI.WriteInfo("This might mean no issues were found, or the response format was unexpected.");
+            
+            // Optional: Show technical details for debugging
+            // To enable debug output, uncomment the catch parameter and the line below:
+            // ConsoleUI.WriteWarning($"Debug info: {ex.Message}");
         }
+        catch (Exception)
+        {
+            // Unexpected error
+            ConsoleUI.WriteWarning("An unexpected error occurred while processing AI recommendations.");
+            ConsoleUI.WriteInfo($"Please try running the scan again. If the issue persists, contact support.");
+            
+            // Optional: Show technical details for debugging
+            // To enable debug output, uncomment the catch parameter and the line below:
+            // ConsoleUI.WriteError($"Debug info: {ex.GetType().Name} - {ex.Message}");
+        }
+    }
+    else
+    {
+        ConsoleUI.WriteInfo("No response received from AI analysis.");
     }
 
     // If we got results, break out and continue to the fix workflow
@@ -394,6 +433,91 @@ foreach (var group in grouped)
 
         index++;
     }
+}
+
+// ── Step 5.5: Interactive Q&A (Optional) ──
+ConsoleUI.WriteHeader("Next Steps");
+
+var nextAction = ConsoleUI.PromptChoice(
+    "What would you like to do?",
+    "Ask a question about database performance",
+    "Apply fixes for the recommendations above",
+    "Exit without applying fixes");
+
+if (nextAction == 0)
+{
+    // Interactive Q&A mode
+    ConsoleUI.WriteHeader("Interactive Q&A Mode");
+    ConsoleUI.WriteInfo("Ask questions about your database performance, configuration, or any SQL Server topic.");
+    ConsoleUI.WriteInfo("Type 'done' when you're ready to proceed to fix mode, or 'quit' to exit.\n");
+
+    while (true)
+    {
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.Write("  Q: ");
+        Console.ResetColor();
+        var question = Console.ReadLine()?.Trim();
+
+        if (string.IsNullOrWhiteSpace(question))
+            continue;
+
+        if (question.Equals("done", StringComparison.OrdinalIgnoreCase))
+        {
+            ConsoleUI.WriteSuccess("Exiting Q&A mode.");
+            break;
+        }
+
+        if (question.Equals("quit", StringComparison.OrdinalIgnoreCase))
+        {
+            ConsoleUI.WriteInfo("Thank you for using SQL Performance & Security Agent!");
+            return 0;
+        }
+
+        Console.WriteLine();
+        ConsoleUI.WriteInfo("Analyzing your question...");
+        Console.WriteLine();
+
+        try
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Write("  A: ");
+            Console.ResetColor();
+            
+            var answer = await copilotService.AskQuestionAsync(question, database);
+            
+            if (answer is not null)
+            {
+                Console.WriteLine();
+            }
+            else
+            {
+                ConsoleUI.WriteWarning("Could not generate an answer. Please try rephrasing your question.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ConsoleUI.WriteError($"Error processing question: {ex.Message}");
+        }
+
+        Console.WriteLine();
+    }
+
+    // After Q&A, ask again if they want to apply fixes
+    var proceedToFixes = ConsoleUI.PromptChoice(
+        "Would you like to apply fixes now?",
+        "Yes, proceed to fix mode",
+        "No, exit");
+
+    if (proceedToFixes == 1)
+    {
+        ConsoleUI.WriteInfo("Thank you for using SQL Performance & Security Agent!");
+        return 0;
+    }
+}
+else if (nextAction == 2)
+{
+    ConsoleUI.WriteInfo("Thank you for using SQL Performance & Security Agent!");
+    return 0;
 }
 
 // ── Step 6: Fix Mode Selection ──
