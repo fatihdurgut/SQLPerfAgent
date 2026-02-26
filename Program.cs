@@ -8,6 +8,40 @@ ConsoleUI.WriteBanner();
 
 try
 {
+// ── Step 0: GitHub Copilot Authentication Check ──
+ConsoleUI.WriteHeader("GitHub Copilot Authentication");
+ConsoleUI.WriteInfo("Verifying GitHub Copilot access...");
+
+var isAuthenticated = await CopilotFixService.CheckAuthenticationAsync();
+
+if (!isAuthenticated)
+{
+    ConsoleUI.WriteError("GitHub Copilot authentication failed.");
+    Console.WriteLine();
+    ConsoleUI.WriteWarning("This tool requires an active GitHub Copilot subscription.");
+    Console.WriteLine();
+    
+    Console.ForegroundColor = ConsoleColor.Cyan;
+    Console.WriteLine("  To authenticate:");
+    Console.ResetColor();
+    Console.WriteLine("    1. Ensure you have a GitHub Copilot subscription");
+    Console.WriteLine("    2. Sign in to GitHub in VS Code or GitHub CLI");
+    Console.WriteLine("    3. Run: gh auth login");
+    Console.WriteLine();
+    
+    Console.ForegroundColor = ConsoleColor.DarkGray;
+    Console.WriteLine("  For more information:");
+    Console.WriteLine("    - GitHub Copilot: https://github.com/features/copilot");
+    Console.WriteLine("    - GitHub CLI: https://cli.github.com/");
+    Console.ResetColor();
+    Console.WriteLine();
+    
+    ConsoleUI.WriteInfo("Please authenticate and try again.");
+    return 1;
+}
+
+ConsoleUI.WriteSuccess("GitHub Copilot authentication verified.");
+
 // ── Step 1: Connection Setup ──
 ConsoleUI.WriteHeader("SQL Server Connection Setup");
 

@@ -20,6 +20,33 @@ internal sealed class CopilotFixService : IAsyncDisposable
     }
 
     /// <summary>
+    /// Checks if the user has an active GitHub Copilot subscription.
+    /// </summary>
+    /// <returns>True if authenticated, false otherwise.</returns>
+    public static async Task<bool> CheckAuthenticationAsync()
+    {
+        try
+        {
+            using var client = new CopilotClient();
+            
+            // Try to create a minimal session to verify authentication
+            await using var session = await client.CreateSessionAsync(new SessionConfig
+            {
+                Model = "Cloude Opus 4.6",
+                Streaming = false
+            });
+            
+            // If we get here, authentication succeeded
+            return true;
+        }
+        catch (Exception)
+        {
+            // Authentication failed or no valid subscription
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Initializes the Copilot session with mssql-mcp server attached.
     /// </summary>
     public async Task InitializeAsync()

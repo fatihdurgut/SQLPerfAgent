@@ -76,6 +76,31 @@ SQLPerfAgent integrates battle-tested diagnostic scripts from [Microsoft's Tiger
 > [!NOTE]
 > The tool supports both on-premises SQL Server and Azure SQL Database. Windows Authentication and SQL Server Authentication are both supported.
 
+> [!IMPORTANT]
+> You must be authenticated with GitHub Copilot before running the tool. The application will verify your authentication at startup and guide you through the authentication process if needed.
+
+### Authentication Setup
+
+If you haven't authenticated with GitHub yet:
+
+1. **Install GitHub CLI** (if not already installed)
+   ```bash
+   # Windows (via winget)
+   winget install GitHub.cli
+   
+   # macOS
+   brew install gh
+   ```
+
+2. **Authenticate with GitHub**
+   ```bash
+   gh auth login
+   ```
+
+3. **Verify you have Copilot access**
+   - Visit [GitHub Copilot](https://github.com/features/copilot)
+   - Ensure your subscription is active
+
 ## Getting Started
 
 ### Installation
@@ -103,6 +128,10 @@ SQLPerfAgent integrates battle-tested diagnostic scripts from [Microsoft's Tiger
 
 ```bash
 $ dotnet run
+
+── GitHub Copilot Authentication ──
+  ℹ Verifying GitHub Copilot access...
+  ✓ GitHub Copilot authentication verified.
 
 ── SQL Server Connection Setup ──
   Server [localhost]: myserver.database.windows.net
@@ -176,6 +205,13 @@ Most thorough diagnostic available. Use for major performance investigations or 
 ### Workflow Overview
 
 The agent guides you through an interactive workflow with optional Q&A:
+
+#### 0. Authentication Verification
+
+The application automatically verifies your GitHub Copilot authentication at startup:
+
+- ✓ If authenticated: Proceeds to SQL Server connection
+- ✗ If not authenticated: Displays authentication instructions and exits
 
 #### 1. Connection Setup
 
