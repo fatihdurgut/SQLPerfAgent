@@ -118,16 +118,28 @@ ConsoleUI.WriteSuccess($"Connecting to {server}" +
     (database is not null ? $" / {database}" : " (all databases)") +
     (connectionConfig.UseWindowsAuth ? " [Windows Auth]" : " [SQL Auth]"));
 
-// ── Step 3A: Scan Mode Selection ──
-ConsoleUI.WriteHeader("Scan Mode Selection");
+// ── Step 3A: Discover Toolbox Plugins ──
+ConsoleUI.WriteHeader("Toolbox Discovery");
+ConsoleUI.WriteInfo("Scanning for toolbox plugins...");
 
-var scanMode = ConsoleUI.PromptChoice(
-    "Select scan mode:",
-    "Quick Scan (Standard DMV queries only)",
-    "Deep Scan (DMVs + Tiger Toolbox checks)",
-    "Tiger Mode (Comprehensive - All checks including advanced index analysis)");
+var allToolboxItems = await ToolboxDiscoveryService.DiscoverToolsAsync();
+var toolboxItems = new List<ToolboxItem>(); // Will hold user's selected tools
 
-ConsoleUI.WriteSuccess($"Selected: {new[] { "Quick Scan", "Deep Scan", "Tiger Mode" }[scanMode]}");
+if (allToolboxItems.Count > 0)
+{
+    ConsoleUI.WriteSuccess($"Found {allToolboxItems.Count} toolbox tool(s):");
+    for (int i = 0; i < allToolboxItems.Count; i++)
+    {
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.WriteLine($"    {i + 1}. {allToolboxItems[i].Name} — {allToolboxItems[i].Description}");
+        Console.ResetColor();
+    }
+}
+else
+{
+    ConsoleUI.WriteInfo("No toolbox plugins found. Only standard DMV queries will run.");
+    ConsoleUI.WriteInfo("Add tools in the Toolbox/ folder — see README for details.");
+}
 
 // ── Step 3: Initialize Copilot with mssql-mcp ──
 ConsoleUI.WriteHeader("Initializing Copilot Agent");
@@ -145,6 +157,164 @@ catch (Exception ex)
     return 1;
 }
 
+// ── Step 3B: Interactive Tool Selection ──
+if (allToolboxItems.Count > 0)
+{
+    ConsoleUI.WriteHeader("Tool Selection");
+    ConsoleUI.WriteInfo("Standard DMV queries (missing indexes, fragmentation, expensive queries, unused indexes) always run.");
+
+    var selectionMode = ConsoleUI.PromptChoice(
+        "Which additional toolbox checks would you like to run?",
+        "Run all toolbox tools",
+        "Let me pick specific tools",
+        "Describe my problem — get AI suggestions",
+        "Skip toolbox tools (DMV queries only)");
+
+    if (selectionMode == 0)
+    {
+        // Run all
+        toolboxItems = allToolboxItems;
+        ConsoleUI.WriteSuccess($"All {toolboxItems.Count} toolbox tool(s) selected.");
+    }
+    else if (selectionMode == 1)
+    {
+        // Manual multi-select
+        var toolOptions = allToolboxItems.Select(t => $"{t.Name} — {t.Description}").ToArray();
+        var selected = ConsoleUI.PromptMultiChoice("Select tools to run:", toolOptions);
+        toolboxItems = selected.Select(i => allToolboxItems[i]).ToList();
+        ConsoleUI.WriteSuccess($"Selected {toolboxItems.Count} tool(s): {string.Join(", ", toolboxItems.Select(t => t.Name))}");
+    }
+    else if (selectionMode == 2)
+    {
+        // AI-assisted selection loop
+        ConsoleUI.WriteInfo("Describe your problem or concern, and Copilot will suggest which tools to run.");
+        ConsoleUI.WriteInfo("Type 'done' when you're ready to proceed with the suggested tools.\n");
+
+        var suggestedToolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        while (true)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write("  Describe your concern: ");
+            Console.ResetColor();
+            var input = Console.ReadLine()?.Trim();
+
+            if (string.IsNullOrWhiteSpace(input))
+                continue;
+
+            if (input.Equals("quit", StringComparison.OrdinalIgnoreCase))
+                throw new QuitException();
+
+            if (input.Equals("done", StringComparison.OrdinalIgnoreCase))
+                break;
+
+            ConsoleUI.WriteInfo("Analyzing your concern...\n");
+
+            try
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                var suggestion = await copilotService.SuggestToolsAsync(input, allToolboxItems, database);
+                Console.ResetColor();
+
+                if (suggestion is not null)
+                {
+                    // Extract mentioned tool names from AI response
+                    foreach (var tool in allToolboxItems)
+                    {
+                        if (suggestion.Contains(tool.Name, StringComparison.OrdinalIgnoreCase))
+                            suggestedToolNames.Add(tool.Name);
+                    }
+                }
+
+                Console.WriteLine();
+            }
+            catch (Exception ex)
+            {
+                Console.ResetColor();
+                ConsoleUI.WriteWarning($"Could not get suggestion: {ex.Message}");
+            }
+
+            // Show running tally of suggested tools
+            if (suggestedToolNames.Count > 0)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine($"  Suggested so far: {string.Join(", ", suggestedToolNames)}");
+                Console.ResetColor();
+            }
+
+            ConsoleUI.WriteInfo("Ask another question, or type 'done' to proceed.\n");
+        }
+
+        // Let the user confirm or adjust the AI suggestions
+        if (suggestedToolNames.Count > 0)
+        {
+            var suggested = allToolboxItems
+                .Where(t => suggestedToolNames.Contains(t.Name))
+                .ToList();
+
+            Console.WriteLine();
+            ConsoleUI.WriteInfo($"Based on your input, these tools are suggested:");
+            foreach (var t in suggested)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine($"    • {t.Name} — {t.Description}");
+                Console.ResetColor();
+            }
+
+            var confirmSuggestions = ConsoleUI.PromptChoice(
+                "How would you like to proceed?",
+                $"Run suggested tools ({suggested.Count})",
+                "Let me adjust — pick from full list",
+                "Run all tools",
+                "Skip toolbox tools");
+
+            if (confirmSuggestions == 0)
+            {
+                toolboxItems = suggested;
+            }
+            else if (confirmSuggestions == 1)
+            {
+                var toolOptions = allToolboxItems.Select(t =>
+                {
+                    var marker = suggestedToolNames.Contains(t.Name) ? " ★" : "";
+                    return $"{t.Name} — {t.Description}{marker}";
+                }).ToArray();
+                var selected = ConsoleUI.PromptMultiChoice("Select tools to run (★ = AI suggested):", toolOptions);
+                toolboxItems = selected.Select(i => allToolboxItems[i]).ToList();
+            }
+            else if (confirmSuggestions == 2)
+            {
+                toolboxItems = allToolboxItems;
+            }
+            // else: skip (toolboxItems stays empty)
+        }
+        else
+        {
+            // No tools were suggested — ask if they want to pick manually or skip
+            var fallback = ConsoleUI.PromptChoice(
+                "No specific tools were suggested. What would you like to do?",
+                "Run all tools anyway",
+                "Pick specific tools manually",
+                "Skip toolbox tools (DMV queries only)");
+
+            if (fallback == 0)
+                toolboxItems = allToolboxItems;
+            else if (fallback == 1)
+            {
+                var toolOptions = allToolboxItems.Select(t => $"{t.Name} — {t.Description}").ToArray();
+                var selected = ConsoleUI.PromptMultiChoice("Select tools to run:", toolOptions);
+                toolboxItems = selected.Select(i => allToolboxItems[i]).ToList();
+            }
+        }
+
+        if (toolboxItems.Count > 0)
+            ConsoleUI.WriteSuccess($"Selected {toolboxItems.Count} tool(s): {string.Join(", ", toolboxItems.Select(t => t.Name))}");
+        else
+            ConsoleUI.WriteInfo("No toolbox tools selected — running DMV queries only.");
+    }
+    // else selectionMode == 3: skip, toolboxItems stays empty
+}
+
 // ── Step 4: Fetch & Analyze (with retry loop) ──
 List<Recommendation> recommendations = [];
 
@@ -154,62 +324,43 @@ while (true)
     
     string dmvResults;
     
-    if (scanMode == 0)
+    // Always run standard DMV queries
+    ConsoleUI.WriteInfo($"Running diagnostics{(database is not null ? $" on [{database}]" : " across all user databases")}...");
+    
+    var queryService = new SqlQueryService(connectionConfig);
+    var sb = new System.Text.StringBuilder();
+    
+    ConsoleUI.WriteInfo("  • Running standard DMV queries...");
+    try
     {
-        // Quick Scan - Standard DMV queries only
-        ConsoleUI.WriteInfo($"Running Quick Scan{(database is not null ? $" on [{database}]" : " across all user databases")}...");
-        
-        var queryService = new SqlQueryService(connectionConfig);
+        var dmvData = await queryService.RunDiagnosticQueriesAsync(database);
+        sb.AppendLine(dmvData);
+        sb.AppendLine();
+    }
+    catch (Exception ex)
+    {
+        ConsoleUI.WriteError($"  Failed to run DMV queries: {ex.Message}");
+        return 1;
+    }
+    
+    // Run selected toolbox tools
+    if (toolboxItems.Count > 0)
+    {
+        ConsoleUI.WriteInfo($"  • Running {toolboxItems.Count} toolbox check(s)...");
+        var toolboxService = new ToolboxExecutionService(connectionConfig);
         try
         {
-            dmvResults = await queryService.RunDiagnosticQueriesAsync(database);
-            ConsoleUI.WriteSuccess($"DMV queries completed ({dmvResults.Split('\n').Length} lines of data).");
+            var toolboxData = await toolboxService.RunAllToolsAsync(toolboxItems, database);
+            sb.AppendLine(toolboxData);
         }
         catch (Exception ex)
         {
-            ConsoleUI.WriteError($"Failed to query SQL Server: {ex.Message}");
-            return 1;
+            ConsoleUI.WriteWarning($"  Some toolbox checks failed: {ex.Message}");
         }
     }
-    else
-    {
-        // Deep Scan or Tiger Mode - Include Tiger Toolbox checks
-        ConsoleUI.WriteInfo($"Running {(scanMode == 1 ? "Deep Scan" : "Tiger Mode")}{(database is not null ? $" on [{database}]" : " across all user databases")}...");
-        
-        var queryService = new SqlQueryService(connectionConfig);
-        var tigerService = new TigerToolboxService(connectionConfig);
-        
-        var sb = new System.Text.StringBuilder();
-        
-        // Run standard DMV queries
-        ConsoleUI.WriteInfo("  • Running standard DMV queries...");
-        try
-        {
-            var dmvData = await queryService.RunDiagnosticQueriesAsync(database);
-            sb.AppendLine(dmvData);
-            sb.AppendLine();
-        }
-        catch (Exception ex)
-        {
-            ConsoleUI.WriteError($"  Failed to run DMV queries: {ex.Message}");
-            return 1;
-        }
-        
-        // Run Tiger Toolbox checks
-        ConsoleUI.WriteInfo("  • Running Tiger Toolbox checks...");
-        try
-        {
-            var tigerData = await tigerService.RunTigerChecksAsync(database, includeAdvanced: scanMode == 2);
-            sb.AppendLine(tigerData);
-        }
-        catch (Exception ex)
-        {
-            ConsoleUI.WriteWarning($"  Some Tiger Toolbox checks failed: {ex.Message}");
-        }
-        
-        dmvResults = sb.ToString();
-        ConsoleUI.WriteSuccess($"Comprehensive scan completed ({dmvResults.Split('\n').Length} lines of data).");
-    }
+    
+    dmvResults = sb.ToString();
+    ConsoleUI.WriteSuccess($"Scan completed ({dmvResults.Split('\n').Length} lines of data).");
 
     // Send results to Copilot for analysis
     ConsoleUI.WriteInfo("Sending results to Copilot for analysis...");
@@ -220,7 +371,7 @@ while (true)
     string? recommendationsJson;
     try
     {
-        recommendationsJson = await copilotService.AnalyzeResultsAsync(dmvResults, database);
+        recommendationsJson = await copilotService.AnalyzeResultsAsync(dmvResults, database, toolboxItems);
     }
     finally
     {

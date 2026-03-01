@@ -71,7 +71,13 @@ internal sealed class CopilotFixService : IAsyncDisposable
                 Content = """
                     You are a SQL Server performance and security expert.
                     You help analyze SQL Server instances for performance issues, security vulnerabilities, and configuration problems.
-                    You integrate insights from Microsoft Tiger Toolbox - battle-tested SQL Server diagnostic tools used by Microsoft's Tiger Team.
+                    
+                    ## Extensible Toolbox Architecture
+                    
+                    This application uses a plugin-based toolbox system. Diagnostic tools are discovered from the Toolbox/ folder at startup.
+                    Each tool has a tool.md file that describes what it checks and how to interpret results.
+                    When analyzing results, the tool.md content for each tool will be provided as context — use it to understand
+                    what each tool's output means, what severity to assign, and how to generate appropriate fix scripts.
                     
                     ## SQL Performance Best Practices
                     
@@ -98,16 +104,6 @@ internal sealed class CopilotFixService : IAsyncDisposable
                     - Rebuild or reorganize indexes with >30% fragmentation
                     - Avoid large index keys (>900 bytes) that cause performance issues
                     - Avoid low fill factor (<80%) unless specifically needed
-                    
-                    ### Tiger Toolbox Integration
-                    When analyzing results that include Tiger Toolbox checks:
-                    - VLF Checks: High VLF counts (>1000 critical, >100 warning) cause transaction log performance issues
-                    - TempDB Configuration: Files should equal CPU count (up to 8), equal size, and fixed growth increments
-                    - Backup Status: Flag databases without recent backups (>7 days for full, >24 hours for log)
-                    - Memory Pressure: Alert when available memory <10% of total
-                    - MaxDOP: Should typically be 8 or CPU count (whichever is lower)
-                    - Instant File Initialization: Should be enabled for faster data file operations
-                    - Deprecated Features: Flag usage of features being removed in future SQL versions
                     
                     ### Anti-Patterns to Flag
                     - SELECT * in production queries
@@ -141,8 +137,9 @@ internal sealed class CopilotFixService : IAsyncDisposable
 
     /// <summary>
     /// Asks Copilot to analyze pre-fetched DMV results and return structured recommendations.
+    /// Includes toolbox tool.md context so the AI understands each tool's output.
     /// </summary>
-    public async Task<string?> AnalyzeResultsAsync(string dmvResults, string? database)
+    public async Task<string?> AnalyzeResultsAsync(string dmvResults, string? database, List<ToolboxItem>? toolboxItems = null)
     {
         ArgumentNullException.ThrowIfNull(_session);
 
@@ -150,19 +147,39 @@ internal sealed class CopilotFixService : IAsyncDisposable
             ? $"for database '{database}'"
             : "for all user databases on this instance";
 
+        // Build toolbox context from tool.md files
+        var toolboxContext = string.Empty;
+        if (toolboxItems is not null && toolboxItems.Count > 0)
+        {
+            var toolContextBuilder = new System.Text.StringBuilder();
+            toolContextBuilder.AppendLine();
+            toolContextBuilder.AppendLine("## Toolbox Plugin Context");
+            toolContextBuilder.AppendLine("The following toolbox tools were run. Use their documentation to interpret results:");
+            toolContextBuilder.AppendLine();
+            foreach (var tool in toolboxItems)
+            {
+                toolContextBuilder.AppendLine($"### {tool.Name}");
+                toolContextBuilder.AppendLine(tool.ToolMdContent);
+                toolContextBuilder.AppendLine();
+            }
+            toolboxContext = toolContextBuilder.ToString();
+        }
+
         var prompt = $"""
-            I have run DMV diagnostic queries against the SQL Server instance {dbScope}.
+            I have run diagnostic queries and toolbox checks against the SQL Server instance {dbScope}.
             Here are the raw results:
 
             {dmvResults}
-
+            {toolboxContext}
             Analyze these results and create recommendations using the SQL performance best practices from your system instructions.
+            Use the toolbox plugin context above to correctly interpret the output from each toolbox tool.
             
             Pay special attention to:
             - Missing indexes with high impact scores — suggest composite/covering indexes with proper column order
             - Fragmented indexes — recommend REBUILD (>30%) vs REORGANIZE (10-30%), prefer ONLINE operations
             - Expensive queries — identify anti-patterns (SELECT *, function calls in WHERE, implicit conversions, large OFFSET pagination, correlated subqueries)
             - Unused indexes — flag indexes with zero reads but high update overhead for removal
+            - Any issues flagged by toolbox checks — use the tool.md interpretation guidance for severity and recommendations
             
             For each finding, provide:
             - Category: Performance, Security, or Configuration
@@ -170,7 +187,7 @@ internal sealed class CopilotFixService : IAsyncDisposable
             - Title: Short description
             - Description: Detailed explanation of the issue, its impact, and the recommended fix approach
             - AffectedObject: The specific database object affected (table, index, query text snippet)
-            - Source: "DMV"
+            - Source: "DMV" or the toolbox tool name (e.g., "BestPracticesChecks", "VLFCheck", etc.)
 
             Format the results as a JSON array of objects with these fields.
             Return ONLY the JSON array, no markdown fencing, no extra text.
@@ -283,6 +300,46 @@ internal sealed class CopilotFixService : IAsyncDisposable
             ```sql
             {sql}
             ```
+            """;
+
+        return await SendAndWaitForResponseAsync(prompt);
+    }
+
+    /// <summary>
+    /// Asks Copilot to suggest which toolbox tools to run based on the user's description of their problem.
+    /// Returns the AI's response as plain text with tool name suggestions.
+    /// </summary>
+    public async Task<string?> SuggestToolsAsync(string userQuestion, List<ToolboxItem> availableTools, string? databaseContext = null)
+    {
+        ArgumentNullException.ThrowIfNull(_session);
+
+        var toolListBuilder = new System.Text.StringBuilder();
+        foreach (var tool in availableTools)
+        {
+            toolListBuilder.AppendLine($"- **{tool.Name}**: {tool.Description}");
+        }
+
+        var contextNote = databaseContext is not null
+            ? $"\nThe user is currently connected to database '{databaseContext}'."
+            : "\nThe user is connected to a SQL Server instance (scanning all databases).";
+
+        var prompt = $"""
+            The user is deciding which diagnostic tools to run against their SQL Server.
+            {contextNote}
+
+            Available toolbox tools:
+            {toolListBuilder}
+
+            Note: Standard DMV queries (missing indexes, index fragmentation, expensive queries, unused indexes) always run automatically.
+
+            The user says: "{userQuestion}"
+
+            Based on their description, suggest which tools would be most helpful.
+            For each suggested tool, briefly explain WHY it's relevant to their concern.
+            If ALL tools are relevant, say so.
+            If none of the toolbox tools are particularly relevant (their concern is covered by the standard DMV queries), explain that.
+
+            Keep the response concise and practical. Use the exact tool names from the list above.
             """;
 
         return await SendAndWaitForResponseAsync(prompt);

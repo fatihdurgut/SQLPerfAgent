@@ -176,4 +176,66 @@ internal static class ConsoleUI
             }
         }
     }
+
+    /// <summary>
+    /// Prompts the user to select multiple items by entering comma-separated numbers.
+    /// Returns the 0-based indices of chosen items.
+    /// </summary>
+    public static List<int> PromptMultiChoice(string question, string[] options)
+    {
+        Console.WriteLine();
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine(question);
+        Console.ResetColor();
+
+        for (int i = 0; i < options.Length; i++)
+        {
+            Console.WriteLine($"  [{i + 1}] {options[i]}");
+        }
+
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.WriteLine("  Enter numbers separated by commas (e.g., 1,3,4) or 'all' for everything.");
+        Console.ResetColor();
+
+        while (true)
+        {
+            Console.Write("  > ");
+            var line = Console.ReadLine()?.Trim();
+            CheckForQuit(line);
+
+            if (string.IsNullOrEmpty(line))
+            {
+                WriteError("Please enter at least one selection.");
+                continue;
+            }
+
+            if (line.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                return Enumerable.Range(0, options.Length).ToList();
+            }
+
+            var indices = new List<int>();
+            var parts = line.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            var valid = true;
+
+            foreach (var part in parts)
+            {
+                if (int.TryParse(part, out int num) && num >= 1 && num <= options.Length)
+                {
+                    if (!indices.Contains(num - 1))
+                        indices.Add(num - 1);
+                }
+                else
+                {
+                    valid = false;
+                    break;
+                }
+            }
+
+            if (valid && indices.Count > 0)
+                return indices;
+
+            WriteError($"Please enter valid numbers between 1 and {options.Length}, separated by commas.");
+        }
+    }
 }

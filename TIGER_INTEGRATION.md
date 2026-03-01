@@ -4,6 +4,12 @@
 
 Successfully integrated Microsoft Tiger Toolbox diagnostic capabilities into SQLPerfAgent, transforming it into the most comprehensive AI-powered SQL Server diagnostic tool available.
 
+> **Note:** As of the extensible Toolbox migration, Tiger Toolbox scripts have been moved from the
+> hardcoded `TigerToolbox/` folder into the plugin-based `Toolbox/` system. Each Tiger script now
+> lives in its own subfolder with a `tool.md` manifest. See the [README](README.md#extensible-toolbox)
+> for the new architecture and [Creating Your Own Tool](README.md#creating-your-own-tool) for how
+> to add new diagnostic plugins.
+
 ## Implementation Completed
 
 ### ✅ 1. Project Structure Enhancements

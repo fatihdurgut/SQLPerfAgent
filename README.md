@@ -12,13 +12,13 @@ An AI-powered CLI tool that diagnoses SQL Server performance issues and generate
 │              │ ──► Diagnostics ───────► │ SQLPerfAgent │
 └──────────────┘                          │              │
                                           │  + Copilot   │
-┌──────────────┐                          │  + Tiger     │
-│ Recommended  │ ◄── Fix Scripts ──────── │   Toolbox    │
+┌──────────────┐                          │  + Toolbox   │
+│ Recommended  │ ◄── Fix Scripts ──────── │   Plugins    │
 │    Fixes     │                          │              │
 └──────────────┘                          └──────────────┘
 ```
 
-**Quick links:** [Features](#features) • [Getting Started](#getting-started) • [Usage](#usage) • [Scan Modes](#scan-modes)
+**Quick links:** [Features](#features) • [Getting Started](#getting-started) • [Usage](#usage) • [Extensible Toolbox](#extensible-toolbox) • [Creating Your Own Tool](#creating-your-own-tool)
 
 ---
 
@@ -38,14 +38,15 @@ Think of it as a DBA consultant in your terminal, powered by Microsoft's Tiger T
 - Expensive query identification (CPU, I/O, memory)
 - Unused index detection (reducing maintenance overhead)
 
-**Tiger Toolbox Integration**
+**Extensible Toolbox (Plugin System)**
 
-SQLPerfAgent integrates battle-tested diagnostic scripts from [Microsoft's Tiger Toolbox](https://github.com/microsoft/tigertoolbox):
+SQLPerfAgent ships with diagnostic scripts from [Microsoft's Tiger Toolbox](https://github.com/microsoft/tigertoolbox) and supports **user-created plugins**:
 
 - **Best Practices Checks** — Backup status, MaxDOP configuration, memory pressure, deprecated features
 - **VLF Analysis** — Virtual Log File counts and performance impact assessment
 - **TempDB Configuration** — File count, size equality, autogrow settings validation
-- **Advanced Index Analysis** — Duplicate and redundant index detection
+- **Duplicate Index Detection** — Duplicate and redundant index analysis
+- **Your Own Tools** — Drop a subfolder with a `tool.md` and `.sql` files into `Toolbox/` to extend the agent
 
 ### AI-Powered Insights
 
@@ -58,7 +59,7 @@ SQLPerfAgent integrates battle-tested diagnostic scripts from [Microsoft's Tiger
 ### Developer Experience
 
 - **Interactive CLI workflow** with guided prompts
-- **Three scan modes** (Quick, Deep, Tiger) for different analysis depths
+- **Auto-discovery of toolbox plugins** — all tools in `Toolbox/` run automatically
 - **Interactive Q&A mode** for asking ad-hoc database questions
 - **Flexible authentication** (Windows Auth or SQL Server Auth)
 - **Multi-database scanning** capability
@@ -161,44 +162,119 @@ $ dotnet run
 Would you like to review and apply fixes? [y/n]
 ```
 
-## Scan Modes
+## Extensible Toolbox
 
-Choose the analysis depth that fits your needs:
+SQLPerfAgent uses a **plugin-based toolbox system**. At startup, it automatically discovers all tools in the `Toolbox/` folder and runs them alongside the built-in DMV queries.
 
-### Quick Scan (30-60 seconds)
+### Built-in Tools
 
-Fast diagnostic using standard DMV queries. Ideal for daily health checks.
+The following tools ship with SQLPerfAgent (from Microsoft's Tiger Toolbox):
 
-**Checks performed:**
-- Missing indexes with impact scores
-- Index fragmentation levels
-- Top expensive queries
-- Unused indexes
+| Tool | Description |
+|------|-------------|
+| **BestPracticesChecks** | Memory pressure, backup status, MaxDOP, IFI, deprecated features |
+| **VLFCheck** | Virtual Log File count analysis across all databases |
+| **TempDBChecks** | TempDB file count, size equality, autogrow settings |
+| **DuplicateIndexes** | Duplicate and redundant index detection |
 
-### Deep Scan (1-2 minutes)
+### How It Works
 
-Comprehensive analysis including Tiger Toolbox best practices. Perfect for weekly or monthly reviews.
-
-**Everything in Quick Scan, plus:**
-- Database backup status
-- Memory pressure indicators
-- MaxDOP configuration
-- VLF counts
-- TempDB configuration
-- Instant File Initialization status
-- Deprecated feature usage
-
-### Tiger Mode (2-5 minutes)
-
-Most thorough diagnostic available. Use for major performance investigations or before production deployments.
-
-**Everything in Deep Scan, plus:**
-- Duplicate index detection
-- Redundant index analysis
-- Advanced index pattern analysis
+1. At startup, SQLPerfAgent scans `Toolbox/` for subfolders
+2. Each subfolder with a `tool.md` file and at least one `.sql` file is a valid tool
+3. All discovered tools are displayed and auto-run against the target database
+4. The `tool.md` content is passed to the AI as context, so Copilot knows how to interpret each tool's output
+5. Results from all tools are combined and analyzed together
 
 > [!TIP]
-> Start with Quick Scan for routine monitoring. Use Deep Scan monthly, and Tiger Mode when investigating specific performance issues.
+> You can add or remove tools simply by adding or removing subfolders in `Toolbox/`. No code changes needed!
+
+## Creating Your Own Tool
+
+Extend SQLPerfAgent with your own diagnostic checks:
+
+### 1. Create a subfolder
+
+```
+Toolbox/
+└── MyCustomCheck/
+    ├── tool.md          # Required: describes the tool to both humans and AI
+    └── MyCheck.sql      # Required: one or more .sql files
+```
+
+### 2. Write a `tool.md`
+
+The `tool.md` file serves dual purpose — it's both **documentation for users** and **prompt context for the AI**. Write it in Markdown with these sections:
+
+```markdown
+# My Custom Check
+
+Brief description of what this tool does.
+
+## Scripts
+
+Run `MyCheck.sql` as a single execution (or "using GO batch separation" if needed).
+
+## What It Checks
+
+- Describe each check the SQL performs
+- Include thresholds and expected values
+
+## Interpretation
+
+- Explain how to interpret the results
+- Specify severity levels for different findings
+- Include remediation guidance
+```
+
+**Key conventions:**
+- If your tool.md mentions **"GO batch separation"**, the SQL will be split by `GO` statements and executed as multiple batches
+- Script execution order is determined by the order `.sql` filenames appear in the tool.md. Alphabetical fallback if not mentioned.
+- The AI reads the entire `tool.md` content, so write it as if you're explaining the tool to a DBA expert
+
+### 3. Write your SQL script(s)
+
+Your SQL scripts should:
+- Return result sets with descriptive column names
+- Include a `Status` or `Recommendation` column when possible
+- Work against SQL Server 2016+ (for broadest compatibility)
+- Handle edge cases gracefully (use `TRY`/`CATCH` or `IF EXISTS` checks)
+
+### Example: Custom Wait Stats Tool
+
+**`Toolbox/WaitStats/tool.md`:**
+```markdown
+# Wait Statistics Analysis
+
+Analyzes SQL Server wait statistics to identify performance bottlenecks.
+
+## Scripts
+
+Run `WaitStats.sql` as a single execution.
+
+## What It Checks
+
+- Top 10 wait types by total wait time (excluding benign waits)
+- Identifies I/O, CPU, memory, and locking bottlenecks
+
+## Interpretation
+
+- PAGEIOLATCH waits indicate disk I/O bottleneck — check for missing indexes or slow storage
+- CXPACKET waits indicate parallelism issues — review MaxDOP settings
+- LCK waits indicate blocking — review query patterns and isolation levels
+- High severity if any single wait type exceeds 40% of total waits
+```
+
+**`Toolbox/WaitStats/WaitStats.sql`:**
+```sql
+SELECT TOP 10
+    wait_type AS WaitType,
+    waiting_tasks_count AS WaitCount,
+    wait_time_ms / 1000.0 AS WaitTimeSec,
+    CAST(100.0 * wait_time_ms / SUM(wait_time_ms) OVER() AS DECIMAL(5,1)) AS PctOfTotal
+FROM sys.dm_os_wait_stats
+WHERE wait_type NOT IN ('SLEEP_TASK', 'BROKER_IO_FLUSH', ...)
+ORDER BY wait_time_ms DESC;
+```
 
 ## Usage
 
@@ -410,17 +486,19 @@ SQLPerfAgent combines multiple technologies to deliver intelligent SQL Server di
 │                      SQLPerfAgent CLI                      │
 │                                                            │
 │  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐   │
-│  │ SQL Query    │  │ Tiger Toolbox│  │ Copilot Fix     │   │
-│  │ Service      │  │ Service      │  │ Service         │   │
+│  │ SQL Query    │  │  Toolbox     │  │ Copilot Fix     │   │
+│  │ Service      │  │  Discovery & │  │ Service         │   │
+│  │              │  │  Execution   │  │                 │   │
 │  └──────┬───────┘  └──────┬───────┘  └────────┬────────┘   │
 │         │                 │                   │            │
 └─────────┼─────────────────┼───────────────────┼────────────┘
           │                 │                   │
           ▼                 ▼                   ▼
     ┌──────────┐      ┌──────────┐      ┌──────────────┐
-    │   SQL    │      │  Tiger   │      │   GitHub     │
-    │  Server  │      │ Toolbox  │      │   Copilot    │
-    │   DMVs   │      │ Scripts  │      │   SDK        │
+    │   SQL    │      │ Toolbox/ │      │   GitHub     │
+    │  Server  │      │ Plugins  │      │   Copilot    │
+    │   DMVs   │      │(tool.md +│      │   SDK        │
+    │          │      │ *.sql)   │      │              │
     └──────────┘      └──────────┘      └──────┬───────┘
                                                │
                                                ▼
@@ -435,7 +513,8 @@ SQLPerfAgent combines multiple technologies to deliver intelligent SQL Server di
 | Component | Purpose |
 |-----------|---------|
 | **SqlQueryService** | Executes DMV diagnostic queries using Microsoft.Data.SqlClient |
-| **TigerToolboxService** | Runs Microsoft Tiger Toolbox diagnostic scripts |
+| **ToolboxDiscoveryService** | Discovers toolbox plugins from the Toolbox/ folder at startup |
+| **ToolboxExecutionService** | Runs discovered toolbox SQL scripts against SQL Server |
 | **CopilotFixService** | Manages GitHub Copilot SDK session for AI analysis |
 | **ConsoleUI** | Provides interactive command-line interface |
 | **mssql-mcp** | MCP server enabling Copilot to execute SQL queries |
@@ -447,38 +526,53 @@ SQLPerfAgent/
 ├── Program.cs                      # Main workflow orchestration
 ├── Models/
 │   ├── Recommendation.cs           # Data models and DTOs
+│   ├── ToolboxItem.cs              # Toolbox plugin model
 │   └── TolerantEnumConverter.cs    # Graceful JSON parsing with error tolerance
 ├── Services/
 │   ├── CopilotFixService.cs        # GitHub Copilot integration
 │   ├── SqlQueryService.cs          # DMV query execution
-│   └── TigerToolboxService.cs      # Tiger Toolbox integration
-├── TigerToolbox/
-│   ├── BestPracticesChecks.sql     # Best practices diagnostics
-│   ├── VLFCheck.sql                # VLF analysis
-│   ├── TempDBChecks.sql            # TempDB validation
-│   └── DuplicateIndexes.sql        # Advanced index analysis
+│   ├── ToolboxDiscoveryService.cs  # Plugin discovery from Toolbox/ folder
+│   └── ToolboxExecutionService.cs  # Generic SQL script execution engine
+├── Toolbox/                        # Extensible plugin folder
+│   ├── BestPracticesChecks/        # Each subfolder is a tool
+│   │   ├── tool.md                 # Tool manifest & AI context
+│   │   └── BestPracticesChecks.sql
+│   ├── VLFCheck/
+│   │   ├── tool.md
+│   │   └── VLFCheck.sql
+│   ├── TempDBChecks/
+│   │   ├── tool.md
+│   │   └── TempDBChecks.sql
+│   └── DuplicateIndexes/
+│       ├── tool.md
+│       └── DuplicateIndexes.sql
 └── UI/
     └── ConsoleUI.cs                # Console interaction helpers
 ```
 
 ## How It Works
 
-1. **Data Collection**
-   - Connects to SQL Server using Microsoft.Data.SqlClient
-   - Executes DMV queries for standard diagnostics
-   - Runs Tiger Toolbox scripts for deep analysis (optional)
+1. **Plugin Discovery**
+   - Scans `Toolbox/` folder for subfolders with `tool.md` + `.sql` files
+   - Reads each `tool.md` for execution instructions and AI context
+   - Displays discovered tools to the user
 
-2. **AI Analysis**
-   - Raw results sent to GitHub Copilot via SDK
-   - Copilot analyzes patterns and identifies issues
+2. **Data Collection**
+   - Connects to SQL Server using Microsoft.Data.SqlClient
+   - Executes built-in DMV queries for standard diagnostics
+   - Runs all discovered toolbox plugins automatically
+
+3. **AI Analysis**
+   - Raw results + tool.md context sent to GitHub Copilot via SDK
+   - Copilot uses tool documentation to interpret each tool's output
    - Generates structured recommendations with severity levels
 
-3. **Fix Generation**
+4. **Fix Generation**
    - For each recommendation, Copilot generates T-SQL scripts
    - Scripts include safety checks, comments, and rollback instructions
    - Follows SQL Server best practices (ONLINE operations, MAXDOP settings)
 
-4. **Execution**
+5. **Execution**
    - User reviews generated scripts
    - Scripts execute via mssql-mcp server
    - Results tracked and summarized
