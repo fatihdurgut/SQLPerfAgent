@@ -283,11 +283,11 @@ Scripts should return result sets with descriptive column names. Include `Status
 ┌────────────────────────────────────────────────────────────┐
 │                      SQLPerfAgent CLI                      │
 │                                                            │
-│  ┌───────────────┐  ┌─────────────────┐  ┌──────────────┐ │
-│  │ SqlQuery      │  │ Toolbox         │  │ CopilotFix   │ │
-│  │ Service       │  │ Discovery &     │  │ Service      │ │
-│  │ (DMV queries) │  │ Execution       │  │ (AI + MCP)   │ │
-│  └───────┬───────┘  └────────┬────────┘  └──────┬───────┘ │
+│  ┌───────────────┐  ┌─────────────────┐  ┌──────────────┐  │
+│  │ SqlQuery      │  │ Toolbox         │  │ CopilotFix   │  │
+│  │ Service       │  │ Discovery &     │  │ Service      │  │
+│  │ (DMV queries) │  │ Execution       │  │ (AI + MCP)   │  │
+│  └───────┬───────┘  └────────┬────────┘  └──────┬───────┘  │
 └──────────┼───────────────────┼──────────────────┼──────────┘
            │                   │                  │
            ▼                   ▼                  ▼
