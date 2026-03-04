@@ -150,12 +150,12 @@ internal static class ConsoleUI
     }
 
     /// <summary>
-    /// Prompts Yes/No/Skip. Returns "yes", "skip", or "abort".
+    /// Prompts Yes/Export/Skip/Abort/Quit. Returns "yes", "export", "skip", or "abort".
     /// </summary>
     public static string PromptConfirm(string question)
     {
         Console.WriteLine();
-        Console.Write($"  {question} [Y]es / [S]kip / [A]bort / [Q]uit: ");
+        Console.Write($"  {question} [Y]es / [E]xport / [S]kip / [A]bort / [Q]uit: ");
         while (true)
         {
             var key = Console.ReadKey(intercept: true).Key;
@@ -164,6 +164,9 @@ internal static class ConsoleUI
                 case ConsoleKey.Y:
                     Console.WriteLine("Yes");
                     return "yes";
+                case ConsoleKey.E:
+                    Console.WriteLine("Export");
+                    return "export";
                 case ConsoleKey.S:
                     Console.WriteLine("Skip");
                     return "skip";

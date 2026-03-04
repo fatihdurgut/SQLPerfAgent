@@ -812,6 +812,12 @@ else
             }
         }
     }
+    else if (action == "export")
+    {
+        var scriptsToExport = recommendations.Where(r => r.FixScript is not null).ToList();
+        if (scriptsToExport.Count > 0)
+            await ExportFixScriptsAsync(scriptsToExport, server, database, recommendations.Count);
+    }
     else
     {
         ConsoleUI.WriteWarning("Execution cancelled.");
@@ -819,81 +825,6 @@ else
 }
 
 FixComplete:
-
-// ── Step 8: Export Fix Scripts (Optional) ──
-var scriptsToExport = recommendations.Where(r => r.FixScript is not null).ToList();
-if (scriptsToExport.Count > 0)
-{
-    var exportChoice = ConsoleUI.PromptChoice(
-        "Would you like to export the generated fix scripts to a folder?",
-        "Yes, export all fix scripts",
-        "No, skip export");
-
-    if (exportChoice == 0)
-    {
-        var defaultFolder = Path.Combine(Directory.GetCurrentDirectory(), "FixScripts");
-        var exportPath = ConsoleUI.PromptInput("Export folder", defaultFolder);
-
-        try
-        {
-            Directory.CreateDirectory(exportPath);
-            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var exportedCount = 0;
-
-            foreach (var rec in scriptsToExport)
-            {
-                var safeName = string.Join("_", rec.Title.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Replace(' ', '_');
-                if (safeName.Length > 80) safeName = safeName[..80];
-                var fileName = $"{exportedCount + 1:D2}_{safeName}.sql";
-                var filePath = Path.Combine(exportPath, fileName);
-
-                var header = $"-- Recommendation: {rec.Title}\n" +
-                             $"-- Category: {rec.Category} | Severity: {rec.Severity}\n" +
-                             $"-- Affected Object: {rec.AffectedObject}\n" +
-                             $"-- Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n" +
-                             $"-- Status: {(rec.IsFixed ? "Applied" : rec.IsSkipped ? "Skipped" : rec.Error is not null ? $"Error: {rec.Error}" : "Pending")}\n" +
-                             $"--\n\n";
-
-                await File.WriteAllTextAsync(filePath, header + rec.FixScript);
-                exportedCount++;
-            }
-
-            // Also export a combined script
-            var combinedPath = Path.Combine(exportPath, $"ALL_Fixes_{timestamp}.sql");
-            var combinedSb = new System.Text.StringBuilder();
-            combinedSb.AppendLine($"-- SQL Performance Agent — Combined Fix Scripts");
-            combinedSb.AppendLine($"-- Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            combinedSb.AppendLine($"-- Server: {server}");
-            combinedSb.AppendLine($"-- Database: {database ?? "(all user databases)"}");
-            combinedSb.AppendLine($"-- Total recommendations: {recommendations.Count}");
-            combinedSb.AppendLine($"--");
-            combinedSb.AppendLine();
-
-            foreach (var rec in scriptsToExport)
-            {
-                combinedSb.AppendLine($"-- ============================================================");
-                combinedSb.AppendLine($"-- {rec.Title}");
-                combinedSb.AppendLine($"-- Category: {rec.Category} | Severity: {rec.Severity}");
-                combinedSb.AppendLine($"-- Affected Object: {rec.AffectedObject}");
-                combinedSb.AppendLine($"-- ============================================================");
-                combinedSb.AppendLine();
-                combinedSb.AppendLine(rec.FixScript);
-                combinedSb.AppendLine();
-                combinedSb.AppendLine("GO");
-                combinedSb.AppendLine();
-            }
-
-            await File.WriteAllTextAsync(combinedPath, combinedSb.ToString());
-
-            ConsoleUI.WriteSuccess($"Exported {exportedCount} fix script(s) to: {exportPath}");
-            ConsoleUI.WriteInfo($"Combined script: {Path.GetFileName(combinedPath)}");
-        }
-        catch (Exception ex)
-        {
-            ConsoleUI.WriteError($"Failed to export scripts: {ex.Message}");
-        }
-    }
-}
 
 // ── Step 9: Summary Report ──
 ConsoleUI.WriteHeader("Summary Report");
@@ -909,7 +840,7 @@ ConsoleUI.WriteError($"Errors:  {errorCount}");
 if (pendingCount > 0)
     ConsoleUI.WriteInfo($"Pending: {pendingCount}");
 
-if (scriptsToExport.Count > 0)
+if (recommendations.Any(r => r.FixScript is not null))
 {
     Console.ForegroundColor = ConsoleColor.DarkGray;
     Console.WriteLine($"  Scripts exported: {(Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "FixScripts")) ? "Yes" : "No")}");
@@ -930,6 +861,72 @@ catch (QuitException)
 }
 
 // ── Helpers ──
+
+static async Task ExportFixScriptsAsync(List<Recommendation> scriptsToExport, string server, string? database, int totalRecommendations)
+{
+    var defaultFolder = Path.Combine(Directory.GetCurrentDirectory(), "FixScripts");
+    var exportPath = ConsoleUI.PromptInput("Export folder", defaultFolder);
+
+    try
+    {
+        Directory.CreateDirectory(exportPath);
+        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var exportedCount = 0;
+
+        foreach (var rec in scriptsToExport)
+        {
+            var safeName = string.Join("_", rec.Title.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Replace(' ', '_');
+            if (safeName.Length > 80) safeName = safeName[..80];
+            var fileName = $"{exportedCount + 1:D2}_{safeName}.sql";
+            var filePath = Path.Combine(exportPath, fileName);
+
+            var header = $"-- Recommendation: {rec.Title}\n" +
+                         $"-- Category: {rec.Category} | Severity: {rec.Severity}\n" +
+                         $"-- Affected Object: {rec.AffectedObject}\n" +
+                         $"-- Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n" +
+                         $"-- Status: {(rec.IsFixed ? "Applied" : rec.IsSkipped ? "Skipped" : rec.Error is not null ? $"Error: {rec.Error}" : "Pending")}\n" +
+                         $"--\n\n";
+
+            await File.WriteAllTextAsync(filePath, header + rec.FixScript);
+            exportedCount++;
+        }
+
+        // Also export a combined script
+        var combinedPath = Path.Combine(exportPath, $"ALL_Fixes_{timestamp}.sql");
+        var combinedSb = new System.Text.StringBuilder();
+        combinedSb.AppendLine($"-- SQL Performance Agent — Combined Fix Scripts");
+        combinedSb.AppendLine($"-- Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        combinedSb.AppendLine($"-- Server: {server}");
+        combinedSb.AppendLine($"-- Database: {database ?? "(all user databases)"}");
+        combinedSb.AppendLine($"-- Total recommendations: {totalRecommendations}");
+        combinedSb.AppendLine($"--");
+        combinedSb.AppendLine();
+
+        foreach (var rec in scriptsToExport)
+        {
+            combinedSb.AppendLine($"-- ============================================================");
+            combinedSb.AppendLine($"-- {rec.Title}");
+            combinedSb.AppendLine($"-- Category: {rec.Category} | Severity: {rec.Severity}");
+            combinedSb.AppendLine($"-- Affected Object: {rec.AffectedObject}");
+            combinedSb.AppendLine($"-- ============================================================");
+            combinedSb.AppendLine();
+            combinedSb.AppendLine(rec.FixScript);
+            combinedSb.AppendLine();
+            combinedSb.AppendLine("GO");
+            combinedSb.AppendLine();
+        }
+
+        await File.WriteAllTextAsync(combinedPath, combinedSb.ToString());
+
+        ConsoleUI.WriteSuccess($"Exported {exportedCount} fix script(s) to: {exportPath}");
+        ConsoleUI.WriteInfo($"Combined script: {Path.GetFileName(combinedPath)}");
+    }
+    catch (Exception ex)
+    {
+        ConsoleUI.WriteError($"Failed to export scripts: {ex.Message}");
+    }
+}
+
 static List<string> WordWrap(string text, int maxWidth)
 {
     var lines = new List<string>();
