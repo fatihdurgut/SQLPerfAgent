@@ -42,16 +42,6 @@ if (!isAuthenticated)
 
 ConsoleUI.WriteSuccess("GitHub Copilot authentication verified.");
 
-var gitHubUsername = await CopilotFixService.GetGitHubUsernameAsync();
-if (gitHubUsername is not null)
-{
-    ConsoleUI.WriteInfo($"Signed in as: {gitHubUsername}");
-}
-else
-{
-    ConsoleUI.WriteWarning("Could not retrieve GitHub username. Ensure GitHub CLI is installed and authenticated.");
-}
-
 // ── Step 1: Connection Setup ──
 ConsoleUI.WriteHeader("SQL Server Connection Setup");
 

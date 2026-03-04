@@ -47,36 +47,6 @@ internal sealed class CopilotFixService : IAsyncDisposable
     }
 
     /// <summary>
-    /// Retrieves the authenticated GitHub username via the GitHub CLI.
-    /// Returns null if the CLI is not available or the user is not logged in.
-    /// </summary>
-    public static async Task<string?> GetGitHubUsernameAsync()
-    {
-        try
-        {
-            using var process = new System.Diagnostics.Process();
-            process.StartInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "gh",
-                Arguments = "api user --jq .login",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            process.Start();
-            var output = await process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
-            var username = output.Trim();
-            return process.ExitCode == 0 && !string.IsNullOrEmpty(username) ? username : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
     /// Initializes the Copilot session with mssql-mcp server attached.
     /// </summary>
     public async Task InitializeAsync()
