@@ -9,7 +9,7 @@
 
 An AI-powered CLI tool that diagnoses SQL Server performance issues and generates actionable fix scripts — powered by GitHub Copilot.
 
-[Features](#features) • [Getting Started](#getting-started) • [Usage](#usage) • [Extensible Toolbox](#extensible-toolbox) • [Creating Your Own Tool](#creating-your-own-tool) • [Architecture](#architecture)
+[Features](#features) • [Getting Started](#getting-started) • [Usage](#usage) • [Extensible Toolbox](#extensible-toolbox) • [Creating Your Own Tool](#creating-your-own-tool) • [Architecture](#architecture) • [Documentation](docs/README.md)
 
 </div>
 
@@ -56,7 +56,8 @@ SQLPerfAgent connects to your SQL Server instance, runs diagnostic DMV queries a
 |---|---|
 | [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | Build and run the application |
 | [GitHub Copilot](https://github.com/features/copilot) subscription | AI analysis and fix generation |
-| [Node.js](https://nodejs.org/) | Required for the mssql-mcp server (launched automatically) |
+| [GitHub CLI](https://cli.github.com/) | Authentication with GitHub Copilot |
+| [Node.js 18+](https://nodejs.org/) | Required for the mssql-mcp server (launched automatically via `npx`) |
 | SQL Server instance | Target database (2016+ recommended) |
 
 > [!NOTE]
@@ -304,39 +305,17 @@ Scripts should return result sets with descriptive column names. Include `Status
                                            └──────────────┘
 ```
 
-### Project structure
+For detailed architecture documentation — including project structure, component responsibilities, technology stack, data flow diagrams, and how the AI integration works — see the **[full documentation](docs/README.md#architecture)**.
 
-```
-SQLPerfAgent/
-├── Program.cs                      # Main workflow orchestration
-├── Models/
-│   ├── Recommendation.cs           # Data models (recommendations, connection config)
-│   ├── ToolboxItem.cs              # Toolbox plugin model
-│   └── TolerantEnumConverter.cs    # Graceful JSON enum parsing
-├── Services/
-│   ├── CopilotFixService.cs        # GitHub Copilot SDK integration
-│   ├── SqlQueryService.cs          # Direct DMV query execution
-│   ├── ToolboxDiscoveryService.cs  # Plugin auto-discovery
-│   └── ToolboxExecutionService.cs  # Plugin SQL execution engine
-├── Toolbox/                        # Extensible plugin directory
-│   ├── BestPracticesChecks/
-│   ├── DuplicateIndexes/
-│   ├── TempDBChecks/
-│   └── VLFCheck/
-└── UI/
-    └── ConsoleUI.cs                # Interactive CLI helpers
-```
+## Documentation
 
-### Key components
+The **[docs/](docs/README.md)** folder contains in-depth documentation:
 
-| Component | Responsibility |
-|---|---|
-| **SqlQueryService** | Runs DMV diagnostic queries via Microsoft.Data.SqlClient |
-| **ToolboxDiscoveryService** | Scans `Toolbox/` for valid plugins at startup |
-| **ToolboxExecutionService** | Executes plugin SQL scripts (single and GO-batch modes) |
-| **CopilotFixService** | Manages Copilot SDK session — AI analysis, tool suggestions, Q&A, and fix generation |
-| **ConsoleUI** | Prompts, multi-select, masked input, colored output |
-| **mssql-mcp** | MCP server enabling Copilot to query SQL Server directly |
+- **[Problem & Solution](docs/README.md#problem-statement)** — Why this tool exists and how it works
+- **[Deployment Guide](docs/README.md#deployment)** — Self-contained publish, framework-dependent deployment, Docker, and deployment checklist
+- **[Architecture Deep Dive](docs/README.md#architecture)** — Component responsibilities, technology stack, AI integration pipeline, data flow diagrams
+- **[Data Flow & Privacy](docs/README.md#data-flow)** — What data is sent where, credential handling
+- **[Responsible AI Notes](docs/README.md#responsible-ai-rai-notes)** — Intended use, human oversight, limitations, transparency
 
 ## Resources
 
@@ -344,3 +323,4 @@ SQLPerfAgent/
 - [Microsoft Tiger Toolbox](https://github.com/microsoft/tigertoolbox) — Source for built-in diagnostic scripts
 - [SQL Server DMV Reference](https://learn.microsoft.com/sql/relational-databases/system-dynamic-management-views/) — Dynamic Management Views documentation
 - [mssql-mcp](https://www.npmjs.com/package/mssql-mcp) — MCP server for SQL Server connectivity
+- [GitHub Copilot Privacy](https://docs.github.com/en/copilot/overview-of-github-copilot/about-github-copilot-individual#about-data-for-github-copilot) — Data handling policies

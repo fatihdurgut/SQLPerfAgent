@@ -83,11 +83,11 @@ Connect to SQL Server
 
 | Requirement | Version | Purpose |
 |---|---|---|
-| [.NET SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 10.0 or later | Build and run the application |
+| [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 10.0 or later | Build and run the application |
 | [GitHub Copilot](https://github.com/features/copilot) subscription | Active | AI analysis, fix generation, and interactive Q&A |
 | [GitHub CLI](https://cli.github.com/) | Latest | Authentication with GitHub Copilot |
-| [Node.js](https://nodejs.org/) | 18 or later | Required for the `mssql-mcp` server (launched automatically via `npx`) |
-| SQL Server | 2016+ recommended | Target database instance |
+| [Node.js 18+](https://nodejs.org/) | 18 or later | Required for the `mssql-mcp` server (launched automatically via `npx`) |
+| SQL Server instance | 2016+ recommended | Target database |
 
 ### Supported environments
 
