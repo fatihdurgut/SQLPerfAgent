@@ -55,13 +55,14 @@ SQLPerfAgent connects to your SQL Server instance, runs diagnostic DMV queries a
 | Requirement | Purpose |
 |---|---|
 | [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | Build and run the application |
-| [GitHub Copilot](https://github.com/features/copilot) subscription | AI analysis and fix generation |
-| [GitHub CLI](https://cli.github.com/) | Authentication with GitHub Copilot |
+| [GitHub Copilot](https://github.com/features/copilot) subscription | AI analysis and fix generation (Free works, **Pro recommended**) |
 | [Node.js 18+](https://nodejs.org/) | Required for the mssql-mcp server (launched automatically via `npx`) |
 | SQL Server instance | Target database (2016+ recommended) |
 
 > [!NOTE]
-> Both on-premises SQL Server and Azure SQL Database are supported. The tool validates your GitHub Copilot authentication at startup and provides setup instructions if needed.
+> Both on-premises SQL Server and Azure SQL Database are supported. The Copilot SDK authenticates independently via its own OAuth device flow — no GitHub CLI required. The tool validates your Copilot authentication at startup and provides setup instructions if needed.
+>
+> The Free tier has a **50 messages/month limit**. A single SQLPerfAgent run can consume 5–15+ messages, so **Copilot Pro or higher is recommended** for regular use.
 
 ## Getting Started
 
@@ -78,17 +79,14 @@ SQLPerfAgent connects to your SQL Server instance, runs diagnostic DMV queries a
    dotnet build
    ```
 
-3. **Authenticate with GitHub** (if not already)
-
-   ```bash
-   gh auth login
-   ```
-
-4. **Run the agent**
+3. **Run the agent**
 
    ```bash
    dotnet run
    ```
+
+> [!TIP]
+> On first run, the Copilot SDK will prompt you to authenticate via an OAuth device flow. Visit the displayed URL and enter the code. This is a one-time step.
 
 ## Usage
 

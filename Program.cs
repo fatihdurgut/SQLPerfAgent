@@ -18,21 +18,20 @@ if (!isAuthenticated)
 {
     ConsoleUI.WriteError("GitHub Copilot authentication failed.");
     Console.WriteLine();
-    ConsoleUI.WriteWarning("This tool requires an active GitHub Copilot subscription.");
+    ConsoleUI.WriteWarning("This tool requires an active GitHub Copilot subscription (Free, Pro, Business, or Enterprise).");
     Console.WriteLine();
     
     Console.ForegroundColor = ConsoleColor.Cyan;
     Console.WriteLine("  To authenticate:");
     Console.ResetColor();
     Console.WriteLine("    1. Ensure you have a GitHub Copilot subscription");
-    Console.WriteLine("    2. Sign in to GitHub in VS Code or GitHub CLI");
-    Console.WriteLine("    3. Run: gh auth login");
+    Console.WriteLine("    2. Run the tool again — the SDK will prompt you to sign in via browser");
+    Console.WriteLine("    3. Visit the displayed URL and enter the device code");
     Console.WriteLine();
     
     Console.ForegroundColor = ConsoleColor.DarkGray;
     Console.WriteLine("  For more information:");
     Console.WriteLine("    - GitHub Copilot: https://github.com/features/copilot");
-    Console.WriteLine("    - GitHub CLI: https://cli.github.com/");
     Console.ResetColor();
     Console.WriteLine();
     

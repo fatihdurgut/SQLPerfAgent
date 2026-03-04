@@ -84,10 +84,24 @@ Connect to SQL Server
 | Requirement | Version | Purpose |
 |---|---|---|
 | [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | 10.0 or later | Build and run the application |
-| [GitHub Copilot](https://github.com/features/copilot) subscription | Active | AI analysis, fix generation, and interactive Q&A |
-| [GitHub CLI](https://cli.github.com/) | Latest | Authentication with GitHub Copilot |
+| [GitHub Copilot](https://github.com/features/copilot) subscription | Active (Free, Pro, Business, or Enterprise) | AI analysis, fix generation, and interactive Q&A |
 | [Node.js 18+](https://nodejs.org/) | 18 or later | Required for the `mssql-mcp` server (launched automatically via `npx`) |
 | SQL Server instance | 2016+ recommended | Target database |
+
+### Copilot authentication
+
+The GitHub Copilot SDK authenticates independently via its own **OAuth device flow** — on first run it prompts you to visit a URL and enter a code, then stores a token locally. **No GitHub CLI (`gh`) is required.**
+
+### Copilot subscription tiers
+
+The Free tier works but has a **50 messages/month limit**. A single SQLPerfAgent run can consume 5–15+ messages depending on the number of recommendations and follow-up questions. **Copilot Pro or higher is recommended** for regular use.
+
+| Tier | Monthly Cost | Works with SQLPerfAgent? | Notes |
+|---|---|---|---|
+| Free | $0 | Yes (limited) | ~50 messages/month; roughly 3–10 full runs |
+| Pro | $10 | **Recommended** | Unlimited messages, full model catalog |
+| Business | $19/user | Full support | Admin controls, audit logs |
+| Enterprise | $39/user | Full support | Fine-tuned models, IP indemnity |
 
 ### Supported environments
 
@@ -100,10 +114,6 @@ Connect to SQL Server
 ```bash
 # .NET SDK
 dotnet --version          # Should output 10.0.x or later
-
-# GitHub CLI
-gh --version              # Should be installed
-gh auth status            # Should show "Logged in to github.com"
 
 # Node.js
 node --version            # Should output v18.x or later
@@ -133,19 +143,13 @@ This installs two NuGet packages:
 - **GitHub.Copilot.SDK** (`0.1.26`) — the Copilot SDK for AI agent capabilities
 - **Microsoft.Data.SqlClient** (`6.1.4`) — SQL Server connectivity
 
-### 3. Authenticate with GitHub
-
-```bash
-gh auth login
-```
-
-Follow the interactive prompts. The agent validates your Copilot subscription at startup and provides setup instructions if authentication fails.
-
-### 4. Run the agent
+### 3. Run the agent
 
 ```bash
 dotnet run
 ```
+
+On first run, the Copilot SDK will prompt you to authenticate via an OAuth device flow — visit the displayed URL and enter the code. This is a one-time step; the token is cached locally for future runs.
 
 The interactive CLI walks you through eight steps:
 
@@ -208,8 +212,7 @@ Requires the .NET 10.0 runtime on the target machine. Produces a smaller output.
 
 - [ ] .NET 10.0 SDK or Runtime installed (depending on publish mode)
 - [ ] Node.js 18+ installed (for `mssql-mcp`)
-- [ ] GitHub CLI installed and authenticated (`gh auth login`)
-- [ ] Active GitHub Copilot subscription on the authenticated account
+- [ ] Active GitHub Copilot subscription (Free works, Pro recommended)
 - [ ] Network access from the deployment machine to the target SQL Server instance
 - [ ] Network access from the deployment machine to GitHub APIs (for Copilot)
 - [ ] Network access from the deployment machine to npm registry (for `npx mssql-mcp@latest`)
